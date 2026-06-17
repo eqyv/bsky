@@ -23,7 +23,7 @@
 
 ## Overview
 
-**bsky crosspost** watches a Bluesky account and re-publishes each new post — text **and** media — to your other social platforms. It runs as a lightweight polling loop with per-platform adapters, so you can enable only the targets you need.
+**bsky crosspost** watches a Bluesky account and re-publishes each new post (text **and** media) to your other social platforms. It runs as a lightweight polling loop with per-platform adapters, so you can enable only the targets you need.
 
 | Platform | Role | Library | Auth |
 | :-- | :-- | :-- | :-- |
