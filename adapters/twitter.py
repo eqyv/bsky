@@ -61,10 +61,27 @@ class TwitterAdapter(SocialAdapter):
         self._is_authenticated = False
 
     def _verify_session(self, client: Client) -> bool:
-        """Confirm the current cookies are a live, authenticated session."""
+        """
+        Confirm the current cookies are a live, authenticated session.
+
+        We use the raw GraphQL user-by-screen-name endpoint instead of twikit's
+        user_id()/user() helpers: those hit a dead v1.1 endpoint (404) or crash
+        in twikit's object parsers against X's current response schema, which
+        produces false "session invalid" results even when auth is fine.
+        Reaching authenticated user data is what proves the cookies work.
+        """
+        if not self.username:
+            # No handle to probe with; trust the cookies and let post() surface
+            # any real auth error.
+            return True
         try:
-            user_id = _run_async(client.user_id())
-            return bool(user_id)
+            data, _ = _run_async(client.gql.user_by_screen_name(self.username))
+            result = (data or {}).get("data", {}).get("user", {}).get("result", {})
+            screen_name = (
+                result.get("legacy", {}).get("screen_name")
+                or result.get("core", {}).get("screen_name")
+            )
+            return bool(screen_name)
         except Exception as e:
             logger.warning(f"X session check failed: {e}")
             return False
@@ -147,6 +164,33 @@ class TwitterAdapter(SocialAdapter):
             logger.error(f"❌ X (Twitter) unexpected error during login: {e}")
             return False
 
+    def _create_tweet_raw(self, client: Client, text: str, media_ids: List[str]) -> str:
+        """
+        Post a tweet via twikit's raw GraphQL layer and return the tweet id.
+
+        We deliberately bypass twikit's high-level create_tweet() return value,
+        which builds a Tweet object through parsers that crash on X's current
+        response schema (the same class of bug that breaks user lookups). The
+        raw call returns the posted tweet's id directly, so a parser bug can't
+        make a *successful* post look like a failure (which would risk a
+        duplicate post on retry).
+        """
+        media_entities = [
+            {"media_id": media_id, "tagged_users": []} for media_id in media_ids
+        ]
+        # Positional args mirror twikit.client.gql.GQLClient.create_tweet:
+        # is_note_tweet, text, media_entities, poll_uri, reply_to,
+        # attachment_url, community_id, share_with_followers, richtext_options,
+        # edit_tweet_id, limit_mode
+        response, _ = _run_async(client.gql.create_tweet(
+            False, text, media_entities, None, None,
+            None, None, False, None, None, None,
+        ))
+        if isinstance(response, dict) and response.get("errors"):
+            raise TwitterException(response["errors"])
+        result = response["data"]["create_tweet"]["tweet_results"]["result"]
+        return result["rest_id"]
+
     def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Posts a tweet with optional media.
@@ -167,9 +211,7 @@ class TwitterAdapter(SocialAdapter):
                     media_ids.append(media_id)
                     logger.debug(f"Uploaded media for X: {path} -> ID: {media_id}")
 
-            tweet = _run_async(client.create_tweet(text=text, media_ids=media_ids))
-
-            tweet_id = tweet.id
+            tweet_id = self._create_tweet_raw(client, text, media_ids)
             tweet_url = f"https://twitter.com/i/web/status/{tweet_id}"
 
             logger.info(f"✅ Posted to X (Twitter): {tweet_url}")
