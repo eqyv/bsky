@@ -2,7 +2,7 @@
 import asyncio
 from typing import Optional, List, Dict, Any
 from twikit import Client
-from twikit.errors import Unauthorized, TwikitError
+from twikit.errors import Unauthorized, TwitterException
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
@@ -110,7 +110,7 @@ class TwitterAdapter(SocialAdapter):
             logger.error(f"❌ X (Twitter) Unauthorized (cookies expired?): {e}")
             self._is_authenticated = False
             return {"success": False, "url": None, "error": "X (Twitter) authentication failed. Cookies may be expired."}
-        except TwikitError as e:
+        except TwitterException as e:
             logger.error(f"❌ X (Twitter) API error: {e}")
             return {"success": False, "url": None, "error": f"X (Twitter) API error: {e}"}
         except Exception as e:
