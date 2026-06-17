@@ -15,9 +15,7 @@
 [![License](https://img.shields.io/github/license/eqyv/bsky?style=for-the-badge&color=0ea5e9)](LICENSE)
 
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Bluesky](https://img.shields.io/badge/Bluesky-0285FF?style=for-the-badge&logo=bluesky&logoColor=white)
-![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)
-![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)
+[![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/cookiedust)
 
 </div>
 
@@ -105,6 +103,13 @@ X (Twitter) relies on `twikit`, an unofficial client that occasionally drifts fr
 ## Disclaimer
 
 This project uses **unofficial** clients for X and Instagram. Automating these platforms may violate their Terms of Service and can put your account at risk. Use responsibly, at your own risk, and prefer dedicated/secondary accounts.
+
+## Support
+
+If this project saved you time and you'd like to support, donations are welcome, thank you! 🙏
+
+![TON](https://img.shields.io/badge/TON-0098EA?style=for-the-badge&logo=ton&logoColor=white)
+&nbsp; `UQA1aKaBehiY-TJzDffLFPaZzHYa6nHxZUAl8MKCrJnlnBx-`
 
 ---
 

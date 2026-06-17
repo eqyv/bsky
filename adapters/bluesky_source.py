@@ -16,6 +16,7 @@ class BlueskySource:
         self.client = Client()
         self.resolver = IdResolver()
         self._did: Optional[str] = None
+        self._pds: Optional[str] = None
         self._logged_in: bool = False
 
     def validate_credentials(self) -> bool:
@@ -50,6 +51,22 @@ class BlueskySource:
             logger.error(f"Failed to resolve handle {self.handle}: {e}")
             return None
 
+    def _resolve_pds(self) -> Optional[str]:
+        """Resolve the account's PDS host (where its blobs live). Cached."""
+        if self._pds:
+            return self._pds
+        did = self._resolve_did()
+        if not did:
+            return None
+        try:
+            doc = self.resolver.did.resolve(did)
+            self._pds = doc.get_pds_endpoint()
+            logger.debug(f"Resolved PDS for {did} → {self._pds}")
+            return self._pds
+        except Exception as e:
+            logger.error(f"Failed to resolve PDS for {did}: {e}")
+            return None
+
     def _extract_media(self, post) -> List[Dict[str, str]]:
         """
         Extract media (images/videos) from a Bluesky post.
@@ -75,17 +92,27 @@ class BlueskySource:
                         "mime_type": "image/jpeg"
                     })
 
-        # Video
-        if isinstance(embed, AppBskyEmbedVideo.View) or hasattr(embed, "video"):
-            video = getattr(embed, "video", None)
-            if video:
-                url = getattr(video, "ref", None) or getattr(video, "playlist", None)
-                if url:
-                    media_list.append({
-                        "url": url,
-                        "alt": "",
-                        "mime_type": "video/mp4"
-                    })
+        # Video — the embed only exposes an HLS `playlist` (.m3u8), which is not a
+        # re-uploadable file. Fetch the original MP4 from the repo blob instead,
+        # via the public com.atproto.sync.getBlob endpoint on the account's PDS.
+        if isinstance(embed, AppBskyEmbedVideo.View) or hasattr(embed, "playlist"):
+            cid = getattr(embed, "cid", None)
+            did = self._resolve_did()
+            pds = self._resolve_pds()
+            if cid and did and pds:
+                blob_url = (
+                    f"{pds}/xrpc/com.atproto.sync.getBlob?did={did}&cid={cid}"
+                )
+                media_list.append({
+                    "url": blob_url,
+                    "alt": getattr(embed, "alt", "") or "",
+                    "mime_type": "video/mp4",
+                })
+            else:
+                logger.warning(
+                    f"Video post missing cid/did/pds; skipping video "
+                    f"(cid={cid}, did={bool(did)}, pds={bool(pds)})"
+                )
 
         # External link thumb
         if hasattr(embed, "external") and embed.external:

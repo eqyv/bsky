@@ -32,9 +32,16 @@ class MediaDownloader:
         self.max_age_seconds = max_age_hours * 3600
         logger.debug(f"Media downloader initialized. Temp dir: {self.temp_dir}")
 
-    def _get_extension(self, url: str, content_type: Optional[str] = None) -> str:
+    def _get_extension(
+        self,
+        url: str,
+        content_type: Optional[str] = None,
+        mime_hint: Optional[str] = None,
+    ) -> str:
         """
-        Determine file extension from URL or Content-Type.
+        Determine file extension from URL, Content-Type, or a caller-provided
+        mime hint (used when the server returns a generic/octet-stream type,
+        e.g. getBlob for videos).
         """
         # Try to get extension from URL
         parsed = urlparse(url)
@@ -44,6 +51,11 @@ class MediaDownloader:
             ext_match = re.search(r'\.(jpe?g|png|gif|webp|mp4|mov|avi|webm)$', path, re.I)
             if ext_match:
                 return ext_match.group(1).lower()
+
+        # Prefer a real Content-Type, but fall back to the caller's mime hint
+        # when the response type is missing or uninformative.
+        if not content_type or 'octet-stream' in content_type.lower():
+            content_type = mime_hint or content_type
 
         # Fallback to Content-Type
         if content_type:
@@ -79,7 +91,13 @@ class MediaDownloader:
         timestamp = int(time.time())
         return f"{uri_clean}_{url_id}_{timestamp}"
 
-    def download(self, url: str, post_uri: str, alt_text: str = "") -> Optional[Path]:
+    def download(
+        self,
+        url: str,
+        post_uri: str,
+        alt_text: str = "",
+        mime_type: str = "",
+    ) -> Optional[Path]:
         """
         Download a single media file from a URL.
 
@@ -87,6 +105,8 @@ class MediaDownloader:
             url: The URL of the media file.
             post_uri: The URI of the post (for filename generation).
             alt_text: Alt text for the media (not used for download, but we keep it).
+            mime_type: Known mime type hint (e.g. "video/mp4"), used to pick the
+                correct extension when the server returns a generic Content-Type.
 
         Returns:
             Path to the downloaded file, or None if download failed.
@@ -104,7 +124,7 @@ class MediaDownloader:
 
             # Determine file extension
             content_type = response.headers.get('Content-Type', '')
-            ext = self._get_extension(url, content_type)
+            ext = self._get_extension(url, content_type, mime_hint=mime_type)
 
             # Generate filename
             base_name = self._generate_filename(url, post_uri)
@@ -152,8 +172,9 @@ class MediaDownloader:
         for item in media_items:
             url = item.get('url', '')
             alt = item.get('alt', '')
+            mime_type = item.get('mime_type', '')
             if url:
-                path = self.download(url, post_uri, alt)
+                path = self.download(url, post_uri, alt, mime_type=mime_type)
                 if path:
                     downloaded_paths.append(path)
 

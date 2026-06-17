@@ -207,7 +207,14 @@ class TwitterAdapter(SocialAdapter):
             media_ids = []
             if media_paths:
                 for path in media_paths:
-                    media_id = _run_async(client.upload_media(path))
+                    # Video must finish server-side processing before it can be
+                    # attached to a tweet; wait_for_completion polls for that.
+                    is_video = path.lower().endswith(
+                        (".mp4", ".mov", ".m4v", ".webm", ".avi")
+                    )
+                    media_id = _run_async(
+                        client.upload_media(path, wait_for_completion=is_video)
+                    )
                     media_ids.append(media_id)
                     logger.debug(f"Uploaded media for X: {path} -> ID: {media_id}")
 
