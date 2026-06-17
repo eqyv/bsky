@@ -6,9 +6,8 @@ from twikit.errors import Unauthorized, TwikitError
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
-class TwitterAdapter(SocialAdapter):
-    """Adapter for X (Twitter) using the unofficial twikit library."""
 
+class TwitterAdapter(SocialAdapter):
     def __init__(self, auth_token: str, ct0: str):
         self.auth_token = auth_token
         self.ct0 = ct0
@@ -16,38 +15,49 @@ class TwitterAdapter(SocialAdapter):
         self._is_authenticated = False
 
     def _get_client(self) -> Optional[Client]:
-        """Initializes and returns a twikit Client with cookies."""
         if self.client is None:
             self.client = Client(language='en-US')
         return self.client
 
     def validate_credentials(self) -> bool:
-        """Validates the X cookies by attempting to set them."""
+        """Validate X cookies by setting them and making a light request."""
         client = self._get_client()
         if not client:
             return False
 
-        # twikit's client.set_cookies() is the correct way to authenticate with cookies.
-        # The library expects a dictionary with 'auth_token' and 'ct0'.
-        cookies = {
-            'auth_token': self.auth_token,
-            'ct0': self.ct0
-        }
-
+        cookies = {'auth_token': self.auth_token, 'ct0': self.ct0}
         try:
-            # This method doesn't make an API call; it just sets the cookies for the session.
-            # A good way to test if they work is to try a simple, low-cost operation like getting your own user ID.
-            # We'll rely on the fact that if the cookies are invalid, the subsequent `post` call will fail.
-            # However, we can do a quick sanity check.
             client.set_cookies(cookies)
-            self._is_authenticated = True
-            logger.success("✅ X (Twitter) cookies set successfully.")
-            return True
+            # Make a minimal authenticated request to verify session
+            # We can fetch the authenticated user's ID (which requires valid auth)
+            # This does NOT count as a login; it's just a GET request using the session.
+            # We'll use a synchronous wrapper to call the async method.
+            try:
+                loop = asyncio.get_running_loop()
+                # If we're in an async context, we need to handle differently
+                # But our main is synchronous, so we'll use asyncio.run()
+                user = asyncio.run(client.get_me())
+            except RuntimeError:
+                user = asyncio.run(client.get_me())
+
+            if user and hasattr(user, 'id'):
+                self._is_authenticated = True
+                logger.success(f"✅ X (Twitter) cookies valid. User: @{user.screen_name}")
+                return True
+            else:
+                logger.error("❌ X (Twitter) cookies invalid (could not fetch user)")
+                return False
+
+        except Unauthorized as e:
+            logger.error(f"❌ X (Twitter) cookies expired or invalid: {e}")
+            return False
         except Exception as e:
-            logger.error(f"❌ Failed to set X (Twitter) cookies: {e}")
+            logger.error(f"❌ X (Twitter) validation error: {e}")
             return False
 
+
     def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+        # If _is_authenticated is False, it will attempt to re-validate first.
         """Posts a tweet with optional media."""
         if not self._is_authenticated:
             # Try to re-authenticate if we lost the session
