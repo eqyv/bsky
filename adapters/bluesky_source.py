@@ -33,13 +33,11 @@ class BlueskySource:
             return False
 
     def _ensure_logged_in(self) -> bool:
-        """Ensure we have a valid session, re-login if needed."""
         if not self._logged_in:
             return self.validate_credentials()
         return True
 
     def _resolve_did(self) -> Optional[str]:
-        """Resolve handle to DID. Caches the result."""
         if self._did:
             return self._did
         try:
@@ -51,33 +49,26 @@ class BlueskySource:
             return None
 
     def _extract_media(self, post) -> List[Dict[str, str]]:
-        """
-        Extract media (images/videos) from a Bluesky post.
-        Returns a list of dicts: [{"url": "...", "alt": "...", "mime_type": "..."}]
-        """
         media_list = []
-
         if not hasattr(post, "embed") or post.embed is None:
             return media_list
 
         embed = post.embed
 
-        # Check for images
+        # Images
         if isinstance(embed, AppBskyEmbedImages.View) or hasattr(embed, "images"):
             images = getattr(embed, "images", [])
             for img in images:
-                # Images in Bluesky have 'fullsize' and 'thumb' URLs.
-                # We prefer fullsize for higher quality uploads.
                 url = getattr(img, "fullsize", None)
                 alt = getattr(img, "alt", "")
                 if url:
                     media_list.append({
                         "url": url,
                         "alt": alt,
-                        "mime_type": "image/jpeg"  # default, but we can infer from URL later
+                        "mime_type": "image/jpeg"
                     })
 
-        # Check for video
+        # Video
         if isinstance(embed, AppBskyEmbedVideo.View) or hasattr(embed, "video"):
             video = getattr(embed, "video", None)
             if video:
@@ -89,7 +80,7 @@ class BlueskySource:
                         "mime_type": "video/mp4"
                     })
 
-        # Check for external link with thumb
+        # External link thumb
         if hasattr(embed, "external") and embed.external:
             ext = embed.external
             thumb_url = getattr(ext, "thumb", None)
@@ -100,88 +91,74 @@ class BlueskySource:
                     "mime_type": "image/jpeg"
                 })
 
-        if media_list:
-            logger.debug(f"Extracted {len(media_list)} media items from post")
         return media_list
 
-    def get_latest_post(self) -> Optional[Dict[str, Any]]:
-        """
-        Fetch the most recent original post (no replies, no reposts).
-        Returns structured post data if a new post is found, otherwise None.
+    def _format_post(self, post) -> Dict[str, Any]:
+        """Extract structured data from a post object."""
+        text = ""
+        if hasattr(post, "record") and post.record:
+            if hasattr(post.record, "text"):
+                text = post.record.text or ""
+            elif hasattr(post.record, "value") and hasattr(post.record.value, "text"):
+                text = post.record.value.text or ""
 
-        Return structure:
-        {
-            "uri": "at://...",
-            "cid": "...",
-            "text": "Post text",
-            "media": [{"url": "...", "alt": "...", "mime_type": "..."}],
-            "author": "handle.bsky.social",
-            "timestamp": "2026-06-16T14:30:00Z"
+        return {
+            "uri": post.uri,
+            "cid": post.cid,
+            "text": text,
+            "media": self._extract_media(post),
+            "author": self.handle,
+            "timestamp": str(post.indexed_at) if hasattr(post, "indexed_at") else "",
         }
-        """
-        # 1. Ensure we're logged in
-        if not self._ensure_logged_in():
-            return None
 
-        # 2. Resolve DID
+    def get_unprocessed_posts(self) -> List[Dict[str, Any]]:
+        """
+        Fetch a batch of recent posts and return only the ones that haven't been processed yet.
+        Returns posts in chronological order (oldest unprocessed first).
+        """
+        # 1. Ensure login and resolve DID
+        if not self._ensure_logged_in():
+            return []
         did = self._resolve_did()
         if not did:
-            return None
+            return []
 
-        # 3. Fetch the author feed (limit=5, filter out replies & reposts)
+        # 2. Fetch the latest batch (limit=10 to catch bursts)
         try:
-            # filter="posts_no_replies" also excludes reposts
             response = self.client.get_author_feed(
                 actor=did,
-                limit=5,
+                limit=10,  # Increased from 5 to catch more in a burst
                 filter="posts_no_replies"
             )
             feed = response.feed
         except AtProtocolError as e:
             logger.error(f"Failed to fetch feed for {self.handle}: {e}")
-            return None
+            return []
         except Exception as e:
             logger.error(f"Unexpected error fetching feed: {e}")
-            return None
+            return []
 
         if not feed:
-            logger.warning(f"No posts found in feed for {self.handle}")
-            return None
+            return []
 
-        # 4. Get the most recent post (index 0 is newest)
-        latest_feed_view = feed[0]
-        latest_post = latest_feed_view.post
-
-        latest_uri = latest_post.uri
-        latest_cid = latest_post.cid
-
-        # 5. Check if we've already processed this post
+        # 3. Get the last processed URI from state
         last_uri = StateManager.get_last_post_uri()
-        if latest_uri == last_uri:
-            logger.debug(f"No new posts from {self.handle} (last URI: {last_uri})")
-            return None
+        new_posts = []
 
-        # 6. Extract text (posts may have no text, just images)
-        text = ""
-        if hasattr(latest_post, "record") and latest_post.record:
-            if hasattr(latest_post.record, "text"):
-                text = latest_post.record.text or ""
-            elif hasattr(latest_post.record, "value") and hasattr(latest_post.record.value, "text"):
-                # Some versions of the library nest the record
-                text = latest_post.record.value.text or ""
+        # feed is sorted newest-first. We reverse it to go chronological (oldest-first).
+        for item in reversed(feed):
+            post = item.post
+            current_uri = post.uri
 
-        # 7. Extract media
-        media = self._extract_media(latest_post)
+            # If we've already processed this exact URI, stop looking further.
+            # Since we're going oldest -> newest, everything older than this is already processed.
+            if current_uri == last_uri:
+                break
 
-        # 8. Build the result
-        result = {
-            "uri": latest_uri,
-            "cid": latest_cid,
-            "text": text,
-            "media": media,
-            "author": self.handle,
-            "timestamp": str(latest_post.indexed_at) if hasattr(latest_post, "indexed_at") else "",
-        }
+            # This is an unprocessed post.
+            new_posts.append(self._format_post(post))
 
-        logger.info(f"📨 New post detected from {self.handle}: '{text[:50]}...' (URI: {latest_uri[:20]}...)")
-        return result
+        # After the loop, new_posts is already in chronological order (oldest to newest)
+        if new_posts:
+            logger.info(f"📦 Found {len(new_posts)} unprocessed post(s) from {self.handle}")
+        return new_posts
