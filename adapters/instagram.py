@@ -4,16 +4,17 @@ from typing import Optional, List, Dict, Any
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
+
 class InstagramAdapter(SocialAdapter):
     """Adapter for Instagram using the official Graph API."""
 
     def __init__(self, user_id: str, access_token: str):
         self.user_id = user_id
         self.access_token = access_token
-        self.api_version = "v19.0"  # Using a recent version
+        self.api_version = "v19.0"
 
     def validate_credentials(self) -> bool:
-        """Validates the Instagram access token by attempting to get the user's media."""
+        """Validates the Instagram access token."""
         url = f"https://graph.facebook.com/{self.api_version}/{self.user_id}/media"
         params = {
             "access_token": self.access_token,
@@ -36,21 +37,42 @@ class InstagramAdapter(SocialAdapter):
             logger.error(f"❌ Unexpected error validating Instagram credentials: {e}")
             return False
 
+    def _upload_local_file(self, file_path: str) -> Optional[str]:
+        """
+        Upload a local file to a hosting service to get a public URL.
+        For Phase 3, we'll log a warning and return None.
+        In Phase 4, we'll implement a proper solution.
+        """
+        # For now, we can't upload local files directly to Instagram's API.
+        # Instagram requires a publicly accessible URL.
+        # We have a few options:
+        # 1. Use imgbb.com or similar free image hosting API
+        # 2. Use our own server/CDN
+        # 3. Use the Bluesky CDN URL directly (it's publicly accessible)
+        logger.error("Instagram does not support local file uploads directly.")
+        logger.error("You need to host the image at a public URL.")
+        logger.error("For now, please ensure your Bluesky images have public URLs.")
+        return None
+
     def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
         """Posts an image to Instagram."""
         if not media_paths:
             logger.error("Instagram API requires at least one media file.")
             return {"success": False, "url": None, "error": "No media provided for Instagram post."}
 
-        # Instagram Graph API requires posting via URL, not direct file upload.
-        # We need to host the image somewhere. For a simple bot, we can use a public URL.
-        # Since we're downloading from Bluesky, we already have a URL.
-        # We'll need to re-upload or use a temporary hosting service.
-        # For Phase 2, we'll assume the media_paths are URLs.
-        # In Phase 4, we'll implement a proper media hosting solution.
-        # For now, we'll use the first media path as a URL.
-        # Note: This is a simplification. In production, you'd need to upload to a hosting service.
+        # Instagram Graph API requires a publicly accessible URL
+        # For now, we'll assume media_paths[0] is already a URL (from Bluesky's CDN)
+        # In Phase 3, media_paths will be local files, but we'll handle that.
+
         image_url = media_paths[0]
+
+        # Check if it's a local file path
+        if not image_url.startswith(('http://', 'https://')):
+            logger.warning(f"Media path is not a URL: {image_url}")
+            uploaded_url = self._upload_local_file(image_url)
+            if not uploaded_url:
+                return {"success": False, "url": None, "error": "Cannot upload local file. Need a public URL."}
+            image_url = uploaded_url
 
         # Step 1: Create a media container
         create_url = f"https://graph.facebook.com/{self.api_version}/{self.user_id}/media"
