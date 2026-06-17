@@ -14,6 +14,10 @@ class Config:
     X_PASSWORD: str = os.getenv("X_PASSWORD", "")
     X_TOTP_SECRET: str = os.getenv("X_TOTP_SECRET", "")
     X_COOKIES_FILE: str = os.getenv("X_COOKIES_FILE", "storage/twitter_cookies.json")
+    # Cookie-based auth (preferred on datacenter/VPS IPs where login is Cloudflare-blocked).
+    # Export these from a browser logged into X (see .env.example).
+    X_AUTH_TOKEN: str = os.getenv("X_AUTH_TOKEN", "")
+    X_CT0: str = os.getenv("X_CT0", "")
 
     # Instagram
     IG_USERNAME: str = os.getenv("IG_USERNAME", "")
