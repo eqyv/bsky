@@ -2,7 +2,7 @@
 import asyncio
 from typing import Optional, List, Dict, Any
 from twikit import Client
-from twikit.errors import Unauthorized, TwitterException, UserNotFound
+from twikit.errors import Unauthorized, TwitterException, NotFound
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
@@ -13,15 +13,18 @@ class TwitterAdapter(SocialAdapter):
     def __init__(self, auth_token: str, ct0: str, username: str):
         self.auth_token = auth_token
         self.ct0 = ct0
-        self.username = username  # Your Twitter handle (without @)
+        self.username = username
         self.client: Optional[Client] = None
         self._is_authenticated = False
         self._user_id: Optional[str] = None
 
     def _get_client(self) -> Optional[Client]:
-        """Initializes and returns a twikit Client with cookies."""
+        """Initializes and returns a twikit Client with a realistic User-Agent."""
         if self.client is None:
-            self.client = Client(language='en-US')
+            # Set a realistic User-Agent to avoid being blocked
+            # Using a recent Chrome on Windows User-Agent
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            self.client = Client(language='en-US', user_agent=user_agent)
         return self.client
 
     def validate_credentials(self) -> bool:
@@ -43,7 +46,6 @@ class TwitterAdapter(SocialAdapter):
 
             # Workaround: use get_user_by_screen_name with your own username
             # instead of client.user() which is currently broken (returns 404)
-            # Reference: https://blog.gitcode.com/d561a38c54f4118333823e16a4c12b97.html
             try:
                 loop = asyncio.get_running_loop()
                 user = asyncio.run(client.get_user_by_screen_name(self.username))
@@ -59,7 +61,7 @@ class TwitterAdapter(SocialAdapter):
                 logger.error("❌ X (Twitter) cookies invalid (could not fetch user)")
                 return False
 
-        except UserNotFound as e:
+        except NotFound as e:
             logger.error(f"❌ X (Twitter) username '{self.username}' not found: {e}")
             return False
         except Unauthorized as e:
