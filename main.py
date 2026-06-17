@@ -3,7 +3,8 @@ import sys
 import time
 from config import config
 from utils.logger import logger
-from core.detector import check_for_new_post
+from core.detector import get_new_posts
+from core.state_manager import StateManager
 from adapters.bluesky_source import BlueskySource
 
 
@@ -11,7 +12,7 @@ def main():
     logger.info("🚀 Crosspost Bot starting up...")
     logger.info(f"📁 Log file: logs/bot_*.log")
 
-    # 1. Validate .env config
+    # 1. Validate config
     if not config.validate():
         logger.error("❌ Configuration validation failed. Please fill in your .env file.")
         sys.exit(1)
@@ -26,37 +27,44 @@ def main():
         app_password=config.BSKY_APP_PASSWORD
     )
 
-    # 3. Validate Bluesky credentials (fail-fast)
     if not bsky_source.validate_credentials():
-        logger.error("❌ Bluesky authentication failed. Check your handle and app password.")
+        logger.error("❌ Bluesky authentication failed.")
         sys.exit(1)
 
-    # 4. Show current state
-    from core.state_manager import StateManager
     last_uri = StateManager.get_last_post_uri()
     logger.info(f"📌 Last processed post URI: {last_uri}")
-
     logger.info("✨ Bot is ready. Starting polling loop...")
     logger.info("ℹ️  Press Ctrl+C to stop.")
 
-    # 5. Polling loop
     try:
         while True:
             logger.debug("Polling Bluesky for new posts...")
-            post_data = check_for_new_post(bsky_source)
+            new_posts = get_new_posts(bsky_source)
 
-            if post_data:
-                # For Phase 1, we just log the detected post.
-                # In Phase 2+, we'll pass this to the orchestrator.
-                logger.success(f"🎯 New post detected!")
-                logger.info(f"   Text: {post_data['text'][:100]}...")
-                logger.info(f"   Media: {len(post_data['media'])} item(s)")
-                logger.info(f"   URI: {post_data['uri']}")
-                # TODO: Phase 2 — send to orchestrator for cross-posting
+            if new_posts:
+                # Process posts one by one, oldest first
+                for post in new_posts:
+                    logger.success(f"🎯 Processing new post: {post['uri']}")
+                    logger.info(f"   Text: {post['text'][:100]}...")
+                    logger.info(f"   Media: {len(post['media'])} item(s)")
+
+                    # --- PHASE 1 ONLY: Just log it.
+                    # In Phase 2, we will call: orchestrator.crosspost(post)
+                    # For now, we simulate success.
+
+                    # --- CRITICAL: Update state only AFTER successfully handling this post.
+                    # If we fail here, we DON'T update state, so it retries next poll.
+                    try:
+                        StateManager.set_last_post_uri(post['uri'])
+                        logger.info(f"   ✅ State updated to: {post['uri'][:30]}...")
+                    except Exception as e:
+                        logger.error(f"   ❌ Failed to update state for {post['uri']}. Stopping batch to retry.")
+                        # Break out of the for loop so we don't mark newer posts as processed
+                        # when the older one failed.
+                        break
             else:
                 logger.debug("No new posts found.")
 
-            # Wait before next poll
             time.sleep(config.POLL_INTERVAL_SECONDS)
 
     except KeyboardInterrupt:
