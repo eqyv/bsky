@@ -108,8 +108,11 @@ This project uses **unofficial** clients for X and Instagram. Automating these p
 
 If this project saved you time and you'd like to support, donations are welcome, thank you! 🙏
 
-![TON](https://img.shields.io/badge/TON-0098EA?style=for-the-badge&logo=ton&logoColor=white)
-&nbsp; `UQA1aKaBehiY-TJzDffLFPaZzHYa6nHxZUAl8MKCrJnlnBx-`
+You can send toncoin or tokens in (only) TON network to this address.
+
+```
+UQA1aKaBehiY-TJzDffLFPaZzHYa6nHxZUAl8MKCrJnlnBx-
+```
 
 ---
 
