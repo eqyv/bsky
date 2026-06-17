@@ -2,7 +2,7 @@
 import asyncio
 from typing import Optional, List, Dict, Any
 from twikit import Client
-from twikit.errors import Unauthorized, TwitterException
+from twikit.errors import Unauthorized, TwitterException, UserNotFound
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
@@ -10,11 +10,13 @@ from adapters.base import SocialAdapter
 class TwitterAdapter(SocialAdapter):
     """Adapter for X (Twitter) using the unofficial twikit library."""
 
-    def __init__(self, auth_token: str, ct0: str):
+    def __init__(self, auth_token: str, ct0: str, username: str):
         self.auth_token = auth_token
         self.ct0 = ct0
+        self.username = username  # Your Twitter handle (without @)
         self.client: Optional[Client] = None
         self._is_authenticated = False
+        self._user_id: Optional[str] = None
 
     def _get_client(self) -> Optional[Client]:
         """Initializes and returns a twikit Client with cookies."""
@@ -23,7 +25,10 @@ class TwitterAdapter(SocialAdapter):
         return self.client
 
     def validate_credentials(self) -> bool:
-        """Validates the X cookies by attempting to get the authenticated user."""
+        """
+        Validates X cookies by fetching your own user profile using the username.
+        This works around the broken client.user() endpoint.
+        """
         client = self._get_client()
         if not client:
             return False
@@ -36,25 +41,27 @@ class TwitterAdapter(SocialAdapter):
         try:
             client.set_cookies(cookies)
 
-            # Make a minimal authenticated request to verify session
-            # twikit uses async methods; we need to run them in a synchronous context
+            # Workaround: use get_user_by_screen_name with your own username
+            # instead of client.user() which is currently broken (returns 404)
+            # Reference: https://blog.gitcode.com/d561a38c54f4118333823e16a4c12b97.html
             try:
                 loop = asyncio.get_running_loop()
-                # If we're already in an async loop, this is a problem.
-                # For our synchronous main loop, we'll use asyncio.run().
-                user = asyncio.run(client.user())
+                user = asyncio.run(client.get_user_by_screen_name(self.username))
             except RuntimeError:
-                # No running event loop, use asyncio.run()
-                user = asyncio.run(client.user())
+                user = asyncio.run(client.get_user_by_screen_name(self.username))
 
             if user and hasattr(user, 'id'):
+                self._user_id = user.id
                 self._is_authenticated = True
-                logger.success(f"✅ X (Twitter) cookies valid. User: @{user.screen_name}")
+                logger.success(f"✅ X (Twitter) cookies valid. User: @{user.screen_name} (ID: {user.id})")
                 return True
             else:
                 logger.error("❌ X (Twitter) cookies invalid (could not fetch user)")
                 return False
 
+        except UserNotFound as e:
+            logger.error(f"❌ X (Twitter) username '{self.username}' not found: {e}")
+            return False
         except Unauthorized as e:
             logger.error(f"❌ X (Twitter) cookies expired or invalid: {e}")
             return False
@@ -68,7 +75,6 @@ class TwitterAdapter(SocialAdapter):
     def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
         """Posts a tweet with optional media."""
         if not self._is_authenticated:
-            # Try to re-authenticate if we lost the session
             if not self.validate_credentials():
                 return {"success": False, "url": None, "error": "X (Twitter) authentication failed."}
 
@@ -80,23 +86,17 @@ class TwitterAdapter(SocialAdapter):
             media_ids = []
             if media_paths:
                 for path in media_paths:
-                    # twikit's upload_media is synchronous in the latest versions
                     media_id = client.upload_media(path)
                     media_ids.append(media_id)
                     logger.debug(f"Uploaded media for X: {path} -> ID: {media_id}")
 
             # Create the tweet
-            # twikit uses async methods; we need to run them in a synchronous context
             try:
                 loop = asyncio.get_running_loop()
-                # If we're already in an async loop, this is a problem.
-                # For our synchronous main loop, we'll use asyncio.run().
                 tweet = asyncio.run(client.create_tweet(text=text, media_ids=media_ids))
             except RuntimeError:
-                # No running event loop, use asyncio.run()
                 tweet = asyncio.run(client.create_tweet(text=text, media_ids=media_ids))
 
-            # twikit's create_tweet returns a tweet object. We need to extract the URL.
             tweet_id = tweet.id
             tweet_url = f"https://twitter.com/i/web/status/{tweet_id}"
 

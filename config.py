@@ -12,6 +12,7 @@ class Config:
     # X / Twitter
     X_AUTH_TOKEN: str = os.getenv("X_AUTH_TOKEN", "")
     X_CT0: str = os.getenv("X_CT0", "")
+    X_USERNAME: str = os.getenv("X_USERNAME", "")
 
     # Instagram
     IG_USERNAME: str = os.getenv("IG_USERNAME", "")

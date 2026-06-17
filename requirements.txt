@@ -1,7 +1,7 @@
 python-dotenv==1.0.1
 loguru==0.7.2
 requests==2.32.3
-twikit==1.2.0
 apscheduler==3.10.4
+twikit
 atproto
 instagrapi
