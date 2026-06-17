@@ -14,8 +14,9 @@ class Config:
     X_CT0: str = os.getenv("X_CT0", "")
 
     # Instagram
-    IG_USER_ID: str = os.getenv("IG_USER_ID", "")
-    IG_ACCESS_TOKEN: str = os.getenv("IG_ACCESS_TOKEN", "")
+    IG_SESSIONID: str = os.getenv("IG_SESSIONID", "")
+    IG_CSRFTOKEN: str = os.getenv("IG_CSRFTOKEN", "")
+    IG_DS_USER_ID: str = os.getenv("IG_DS_USER_ID", "")
 
     # Bot Settings
     POLL_INTERVAL_SECONDS: int = int(os.getenv("POLL_INTERVAL_SECONDS", "180"))
