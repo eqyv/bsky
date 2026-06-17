@@ -48,15 +48,15 @@ def main():
         logger.warning("⚠️  X (Twitter) credentials not found. Skipping X adapter.")
 
     # Register Instagram adapter if credentials are present
-    if config.IG_SESSIONID and config.IG_CSRFTOKEN and config.IG_DS_USER_ID:
+    if config.IG_USERNAME and config.IG_PASSWORD:
         instagram_adapter = InstagramAdapter(
-            sessionid=config.IG_SESSIONID,
-            csrftoken=config.IG_CSRFTOKEN,
-            ds_user_id=config.IG_DS_USER_ID
+            username=config.IG_USERNAME,
+            password=config.IG_PASSWORD,
+            settings_file=config.IG_SETTINGS_FILE
         )
         orchestrator.register_adapter(instagram_adapter)
     else:
-        logger.warning("⚠️  Instagram cookies not found. Skipping Instagram adapter.")
+        logger.warning("⚠️  Instagram credentials not found. Skipping Instagram adapter.")
 
     # 4. Validate all target adapters (fail-fast if any are invalid)
     if not orchestrator.validate_all():
