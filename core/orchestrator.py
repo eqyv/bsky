@@ -2,6 +2,8 @@
 from typing import List, Dict, Any
 from adapters.base import SocialAdapter
 from utils.logger import logger
+from utils.media_downloader import download_media
+
 
 class Orchestrator:
     """Manages and coordinates all target platform adapters."""
@@ -36,11 +38,18 @@ class Orchestrator:
             A list of results from each adapter.
         """
         text = post_data.get("text", "")
-        # media will be a list of dicts with 'url', 'alt', etc. from Phase 1.
-        # We need to download these files. For Phase 2, we'll handle this in the media downloader.
-        # For now, we'll pass an empty list.
-        # This will be fully implemented in Phase 4.
-        media_paths = []  # Placeholder for Phase 4
+        media_items = post_data.get("media", [])
+        post_uri = post_data.get("uri", "")
+
+        # Download media files
+        media_paths = []
+        if media_items:
+            logger.info(f"📥 Downloading {len(media_items)} media item(s)...")
+            media_paths = download_media(media_items, post_uri)
+            if media_paths:
+                logger.info(f"✅ Downloaded {len(media_paths)} media file(s)")
+            else:
+                logger.warning("⚠️  No media files were downloaded successfully")
 
         results = []
         for adapter in self.adapters:
