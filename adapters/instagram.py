@@ -1,122 +1,150 @@
 # adapters/instagram.py
-import requests
+import json
 from typing import Optional, List, Dict, Any
+from pathlib import Path
 from utils.logger import logger
 from adapters.base import SocialAdapter
 
+try:
+    from instagrapi import Client
+    from instagrapi.exceptions import LoginRequired, ClientError
+except ImportError:
+    logger.error("instagrapi not installed. Run: pip install instagrapi")
+    raise
+
 
 class InstagramAdapter(SocialAdapter):
-    """Adapter for Instagram using the official Graph API."""
+    """Adapter for Instagram using instagrapi (unofficial, cookie-based)."""
 
-    def __init__(self, user_id: str, access_token: str):
-        self.user_id = user_id
-        self.access_token = access_token
-        self.api_version = "v19.0"
+    def __init__(
+        self,
+        sessionid: str,
+        csrftoken: str,
+        ds_user_id: str,
+        settings_file: Optional[str] = None
+    ):
+        """
+        Initialize Instagram adapter with cookies.
+
+        Args:
+            sessionid: The sessionid cookie from browser
+            csrftoken: The csrftoken cookie from browser
+            ds_user_id: The ds_user_id cookie from browser
+            settings_file: Optional path to save/load session settings
+        """
+        self.sessionid = sessionid
+        self.csrftoken = csrftoken
+        self.ds_user_id = ds_user_id
+        self.settings_file = settings_file or "storage/instagram_settings.json"
+        self.client: Optional[Client] = None
+        self._is_authenticated = False
+
+    def _get_client(self) -> Client:
+        """Get or create instagrapi client."""
+        if self.client is None:
+            self.client = Client()
+        return self.client
 
     def validate_credentials(self) -> bool:
-        """Validates the Instagram access token."""
-        url = f"https://graph.facebook.com/{self.api_version}/{self.user_id}/media"
-        params = {
-            "access_token": self.access_token,
-            "limit": 1
-        }
+        """Validate Instagram cookies by attempting to load session."""
+        client = self._get_client()
+
+        # Try to load saved settings first (session persistence)
+        if Path(self.settings_file).exists():
+            try:
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+                client.set_settings(settings)
+                logger.debug("Loaded Instagram session from settings file")
+            except Exception as e:
+                logger.warning(f"Failed to load Instagram settings: {e}")
+
+        # Set cookies directly on the client
+        # instagrapi uses a cookie jar; we need to set them properly
         try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            if "data" in data:
-                logger.success("✅ Instagram credentials validated successfully.")
-                return True
-            else:
-                logger.error(f"❌ Instagram validation failed: {data}")
-                return False
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Instagram validation request failed: {e}")
+            # Method 1: Use login with sessionid (recommended)
+            # instagrapi can login using just the sessionid
+            client.login_by_sessionid(self.sessionid)
+            self._is_authenticated = True
+            logger.success("✅ Instagram login successful (via sessionid)")
+
+            # Save settings for future use
+            self._save_settings(client)
+            return True
+
+        except LoginRequired as e:
+            logger.error(f"❌ Instagram login required (session expired): {e}")
             return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error validating Instagram credentials: {e}")
+            logger.error(f"❌ Instagram login failed: {e}")
             return False
 
-    def _upload_local_file(self, file_path: str) -> Optional[str]:
-        """
-        Upload a local file to a hosting service to get a public URL.
-        For Phase 3, we'll log a warning and return None.
-        In Phase 4, we'll implement a proper solution.
-        """
-        # For now, we can't upload local files directly to Instagram's API.
-        # Instagram requires a publicly accessible URL.
-        # We have a few options:
-        # 1. Use imgbb.com or similar free image hosting API
-        # 2. Use our own server/CDN
-        # 3. Use the Bluesky CDN URL directly (it's publicly accessible)
-        logger.error("Instagram does not support local file uploads directly.")
-        logger.error("You need to host the image at a public URL.")
-        logger.error("For now, please ensure your Bluesky images have public URLs.")
-        return None
+    def _save_settings(self, client: Client) -> None:
+        """Save session settings to file for persistence."""
+        try:
+            settings = client.get_settings()
+            Path(self.settings_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(self.settings_file, 'w') as f:
+                json.dump(settings, f, indent=2, default=str)
+            logger.debug(f"Saved Instagram session settings to {self.settings_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save Instagram settings: {e}")
 
     def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Posts an image to Instagram."""
-        if not media_paths:
-            logger.error("Instagram API requires at least one media file.")
-            return {"success": False, "url": None, "error": "No media provided for Instagram post."}
+        """
+        Post to Instagram using instagrapi.
 
-        # Instagram Graph API requires a publicly accessible URL
-        # For now, we'll assume media_paths[0] is already a URL (from Bluesky's CDN)
-        # In Phase 3, media_paths will be local files, but we'll handle that.
+        Supports:
+        - Single photo
+        - Single video
+        - Album (carousel) with multiple photos/videos
+        """
+        if not self._is_authenticated:
+            if not self.validate_credentials():
+                return {"success": False, "url": None, "error": "Instagram authentication failed"}
 
-        image_url = media_paths[0]
-
-        # Check if it's a local file path
-        if not image_url.startswith(('http://', 'https://')):
-            logger.warning(f"Media path is not a URL: {image_url}")
-            uploaded_url = self._upload_local_file(image_url)
-            if not uploaded_url:
-                return {"success": False, "url": None, "error": "Cannot upload local file. Need a public URL."}
-            image_url = uploaded_url
-
-        # Step 1: Create a media container
-        create_url = f"https://graph.facebook.com/{self.api_version}/{self.user_id}/media"
-        create_payload = {
-            "image_url": image_url,
-            "caption": text,
-            "access_token": self.access_token
-        }
+        client = self._get_client()
 
         try:
-            create_response = requests.post(create_url, data=create_payload)
-            create_response.raise_for_status()
-            create_result = create_response.json()
+            if not media_paths:
+                # Text-only post (Instagram requires media, so this will fail)
+                logger.error("Instagram requires at least one media file")
+                return {"success": False, "url": None, "error": "No media provided"}
 
-            if "id" not in create_result:
-                logger.error(f"❌ Instagram media container creation failed: {create_result}")
-                return {"success": False, "url": None, "error": f"Container creation failed: {create_result}"}
+            if len(media_paths) == 1:
+                # Single photo or video
+                path = media_paths[0]
+                if path.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
+                    result = client.video_upload(path, caption=text)
+                else:
+                    result = client.photo_upload(path, caption=text)
+                media_id = result.id
+                logger.info(f"✅ Posted to Instagram: https://www.instagram.com/p/{media_id}/")
+                return {
+                    "success": True,
+                    "url": f"https://www.instagram.com/p/{media_id}/",
+                    "error": None
+                }
 
-            creation_id = create_result["id"]
-            logger.debug(f"Instagram media container created: {creation_id}")
-
-            # Step 2: Publish the container
-            publish_url = f"https://graph.facebook.com/{self.api_version}/{self.user_id}/media_publish"
-            publish_payload = {
-                "creation_id": creation_id,
-                "access_token": self.access_token
-            }
-
-            publish_response = requests.post(publish_url, data=publish_payload)
-            publish_response.raise_for_status()
-            publish_result = publish_response.json()
-
-            if "id" in publish_result:
-                post_id = publish_result["id"]
-                post_url = f"https://www.instagram.com/p/{post_id}/"
-                logger.info(f"✅ Posted to Instagram: {post_url}")
-                return {"success": True, "url": post_url, "error": None}
             else:
-                logger.error(f"❌ Instagram publish failed: {publish_result}")
-                return {"success": False, "url": None, "error": f"Publish failed: {publish_result}"}
+                # Album (carousel) with multiple media
+                # instagrapi supports album_upload with list of paths
+                result = client.album_upload(media_paths, caption=text)
+                media_id = result.id
+                logger.info(f"✅ Posted album to Instagram: https://www.instagram.com/p/{media_id}/")
+                return {
+                    "success": True,
+                    "url": f"https://www.instagram.com/p/{media_id}/",
+                    "error": None
+                }
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Instagram API request failed: {e}")
-            return {"success": False, "url": None, "error": f"API request failed: {e}"}
+        except LoginRequired as e:
+            logger.error(f"❌ Instagram session expired: {e}")
+            self._is_authenticated = False
+            return {"success": False, "url": None, "error": "Session expired, please re-authenticate"}
+        except ClientError as e:
+            logger.error(f"❌ Instagram client error: {e}")
+            return {"success": False, "url": None, "error": str(e)}
         except Exception as e:
             logger.error(f"❌ Unexpected error posting to Instagram: {e}")
-            return {"success": False, "url": None, "error": f"Unexpected error: {e}"}
+            return {"success": False, "url": None, "error": str(e)}
