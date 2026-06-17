@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-# Load .env file
 load_dotenv()
 
 class Config:
@@ -9,10 +8,10 @@ class Config:
     BSKY_HANDLE: str = os.getenv("BSKY_HANDLE", "")
     BSKY_APP_PASSWORD: str = os.getenv("BSKY_APP_PASSWORD", "")
 
-    # X / Twitter
-    X_AUTH_TOKEN: str = os.getenv("X_AUTH_TOKEN", "")
-    X_CT0: str = os.getenv("X_CT0", "")
+    # X / Twitter (Login method)
     X_USERNAME: str = os.getenv("X_USERNAME", "")
+    X_EMAIL: str = os.getenv("X_EMAIL", "")
+    X_PASSWORD: str = os.getenv("X_PASSWORD", "")
 
     # Instagram
     IG_USERNAME: str = os.getenv("IG_USERNAME", "")
@@ -25,7 +24,6 @@ class Config:
 
     @classmethod
     def validate(cls) -> bool:
-        """Quick check to ensure critical variables are set."""
         missing = []
         if not cls.BSKY_HANDLE:
             missing.append("BSKY_HANDLE")
@@ -37,5 +35,4 @@ class Config:
             return False
         return True
 
-# Singleton instance for easier importing
 config = Config()

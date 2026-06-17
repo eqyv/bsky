@@ -37,12 +37,11 @@ def main():
     # 3. Initialize the Orchestrator and register target adapters
     orchestrator = Orchestrator()
 
-    # Register X (Twitter) adapter if credentials are present
-    if config.X_AUTH_TOKEN and config.X_CT0 and config.X_USERNAME:
+    if config.X_USERNAME and config.X_EMAIL and config.X_PASSWORD:
         twitter_adapter = TwitterAdapter(
-            auth_token=config.X_AUTH_TOKEN,
-            ct0=config.X_CT0,
-            username=config.X_USERNAME
+            username=config.X_USERNAME,
+            email=config.X_EMAIL,
+            password=config.X_PASSWORD
         )
         orchestrator.register_adapter(twitter_adapter)
     else:
