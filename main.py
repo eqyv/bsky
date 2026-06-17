@@ -41,7 +41,9 @@ def main():
         twitter_adapter = TwitterAdapter(
             username=config.X_USERNAME,
             email=config.X_EMAIL,
-            password=config.X_PASSWORD
+            password=config.X_PASSWORD,
+            totp_secret=config.X_TOTP_SECRET,
+            cookies_file=config.X_COOKIES_FILE,
         )
         orchestrator.register_adapter(twitter_adapter)
     else:

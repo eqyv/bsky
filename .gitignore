@@ -1,5 +1,11 @@
 storage/instagram_settings.json
 storage/state.json
+storage/twitter_cookies.json
+
+# Any cookie/session file, wherever X_COOKIES_FILE points it
+*cookies*.json
+*.cookies
+cookies.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

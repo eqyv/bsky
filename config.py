@@ -12,6 +12,8 @@ class Config:
     X_USERNAME: str = os.getenv("X_USERNAME", "")
     X_EMAIL: str = os.getenv("X_EMAIL", "")
     X_PASSWORD: str = os.getenv("X_PASSWORD", "")
+    X_TOTP_SECRET: str = os.getenv("X_TOTP_SECRET", "")
+    X_COOKIES_FILE: str = os.getenv("X_COOKIES_FILE", "storage/twitter_cookies.json")
 
     # Instagram
     IG_USERNAME: str = os.getenv("IG_USERNAME", "")
