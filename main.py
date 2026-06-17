@@ -31,11 +31,42 @@ def main():
         logger.error("❌ Bluesky authentication failed.")
         sys.exit(1)
 
+    # =========================================
+    # 3. SEEDING LOGIC (First run detection)
+    # =========================================
     last_uri = StateManager.get_last_post_uri()
+    if last_uri is None:
+        logger.info("🌱 First run detected. Seeding state with the latest existing post...")
+        # Fetch just the absolute most recent post to use as a baseline
+        try:
+            # We need to quickly use the client to fetch 1 post
+            did = bsky_source._resolve_did()
+            if did:
+                response = bsky_source.client.get_author_feed(
+                    actor=did,
+                    limit=1,
+                    filter="posts_no_replies"
+                )
+                if response.feed:
+                    latest_seed_uri = response.feed[0].post.uri
+                    StateManager.set_last_post_uri(latest_seed_uri)
+                    logger.info(f"   ✅ Seeded with URI: {latest_seed_uri[:30]}...")
+                    logger.info("   ℹ️  Only posts created AFTER this URI will be processed.")
+                else:
+                    logger.info("   ℹ️  No existing posts found. The bot will start fresh.")
+            else:
+                logger.warning("   ⚠️  Could not resolve DID to seed state. Proceeding anyway.")
+        except Exception as e:
+            logger.error(f"   ❌ Failed to seed initial state: {e}. Will try again on next poll.")
+
+        # Update last_uri variable to reflect the newly seeded value (or keep None)
+        last_uri = StateManager.get_last_post_uri()
+
     logger.info(f"📌 Last processed post URI: {last_uri}")
     logger.info("✨ Bot is ready. Starting polling loop...")
     logger.info("ℹ️  Press Ctrl+C to stop.")
 
+    # 4. Polling loop
     try:
         while True:
             logger.debug("Polling Bluesky for new posts...")
@@ -48,19 +79,14 @@ def main():
                     logger.info(f"   Text: {post['text'][:100]}...")
                     logger.info(f"   Media: {len(post['media'])} item(s)")
 
-                    # --- PHASE 1 ONLY: Just log it.
-                    # In Phase 2, we will call: orchestrator.crosspost(post)
-                    # For now, we simulate success.
+                    # --- PHASE 1: Just log it. Phase 2 will call orchestrator ---
 
-                    # --- CRITICAL: Update state only AFTER successfully handling this post.
-                    # If we fail here, we DON'T update state, so it retries next poll.
+                    # Update state ONLY after successfully handling this post.
                     try:
                         StateManager.set_last_post_uri(post['uri'])
                         logger.info(f"   ✅ State updated to: {post['uri'][:30]}...")
                     except Exception as e:
                         logger.error(f"   ❌ Failed to update state for {post['uri']}. Stopping batch to retry.")
-                        # Break out of the for loop so we don't mark newer posts as processed
-                        # when the older one failed.
                         break
             else:
                 logger.debug("No new posts found.")
