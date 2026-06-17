@@ -12,24 +12,24 @@ from adapters import twitter_patch
 twitter_patch.apply()
 
 
-def _run_async(coro):
-    """
-    Run an async coroutine from sync code, whether or not an event loop is
-    already running in this thread.
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop in this thread — the normal case.
-        return asyncio.run(coro)
+# A single, persistent event loop reused for every twikit call.
+#
+# We must NOT use asyncio.run() (which creates and *closes* a fresh loop each
+# call): twikit's underlying httpx.AsyncClient binds its connection pool to the
+# loop it first ran on. Closing the loop between calls — e.g. between
+# upload_media() and create_tweet() when posting media — invalidates those
+# connections and raises "Event loop is closed" on the next call. A persistent
+# loop keeps the connection pool valid across calls.
+_EVENT_LOOP: Optional[asyncio.AbstractEventLoop] = None
 
-    # A loop is already running; we can't reuse it from sync code, so run the
-    # coroutine to completion on a fresh, isolated loop.
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+
+def _run_async(coro):
+    """Run a coroutine to completion on a persistent, shared event loop."""
+    global _EVENT_LOOP
+    if _EVENT_LOOP is None or _EVENT_LOOP.is_closed():
+        _EVENT_LOOP = asyncio.new_event_loop()
+        asyncio.set_event_loop(_EVENT_LOOP)
+    return _EVENT_LOOP.run_until_complete(coro)
 
 
 class TwitterAdapter(SocialAdapter):
