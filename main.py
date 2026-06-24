@@ -8,6 +8,7 @@ from core.orchestrator import Orchestrator
 from core.state_manager import StateManager
 from adapters.bluesky_source import BlueskySource
 from adapters.twitter import TwitterAdapter
+from adapters.xquik import XquikAdapter
 from adapters.instagram import InstagramAdapter
 
 
@@ -52,6 +53,16 @@ def main():
         orchestrator.register_adapter(twitter_adapter)
     else:
         logger.warning("⚠️  X (Twitter) credentials not found. Skipping X adapter.")
+
+    if config.XQUIK_API_KEY and config.XQUIK_ACCOUNT:
+        xquik_adapter = XquikAdapter(
+            api_key=config.XQUIK_API_KEY,
+            account=config.XQUIK_ACCOUNT,
+            create_tweet_url=config.XQUIK_CREATE_TWEET_URL,
+        )
+        orchestrator.register_adapter(xquik_adapter)
+    else:
+        logger.warning("⚠️  Xquik credentials not found. Skipping Xquik adapter.")
 
     # Register Instagram adapter if credentials are present
     if config.IG_USERNAME and config.IG_PASSWORD:

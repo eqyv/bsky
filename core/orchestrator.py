@@ -39,6 +39,11 @@ class Orchestrator:
         """
         text = post_data.get("text", "")
         media_items = post_data.get("media", [])
+        media_urls = [
+            item.get("url", "")
+            for item in media_items
+            if item.get("url", "").startswith(("http://", "https://"))
+        ]
         post_uri = post_data.get("uri", "")
 
         # Download media files
@@ -54,7 +59,7 @@ class Orchestrator:
         results = []
         for adapter in self.adapters:
             logger.info(f"📤 Posting to {adapter.__class__.__name__}...")
-            result = adapter.post(text, media_paths)
+            result = adapter.post(text, media_paths, media_urls)
             results.append(result)
 
             if result.get("success"):

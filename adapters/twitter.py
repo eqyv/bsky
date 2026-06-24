@@ -16,8 +16,8 @@ twitter_patch.apply()
 #
 # We must NOT use asyncio.run() (which creates and *closes* a fresh loop each
 # call): twikit's underlying httpx.AsyncClient binds its connection pool to the
-# loop it first ran on. Closing the loop between calls — e.g. between
-# upload_media() and create_tweet() when posting media — invalidates those
+# loop it first ran on. Closing the loop between calls - e.g. between
+# upload_media() and create_tweet() when posting media - invalidates those
 # connections and raises "Event loop is closed" on the next call. A persistent
 # loop keeps the connection pool valid across calls.
 _EVENT_LOOP: Optional[asyncio.AbstractEventLoop] = None
@@ -98,7 +98,7 @@ class TwitterAdapter(SocialAdapter):
     def validate_credentials(self) -> bool:
         """
         Authenticate with X (Twitter), preferring cookie-based auth (which
-        avoids X's Cloudflare-protected login endpoint — important on
+        avoids X's Cloudflare-protected login endpoint - important on
         datacenter/VPS IPs). Order:
           1. Reuse a previously saved cookies file.
           2. Use auth_token + ct0 supplied via env (browser-exported cookies).
@@ -120,7 +120,7 @@ class TwitterAdapter(SocialAdapter):
             except Exception as e:
                 logger.warning(f"Saved X session invalid: {e}")
 
-        # 2. Browser-exported cookies (auth_token + ct0) — bypasses login.
+        # 2. Browser-exported cookies (auth_token + ct0) - bypasses login.
         if self.auth_token and self.ct0:
             try:
                 client.set_cookies(
@@ -191,7 +191,12 @@ class TwitterAdapter(SocialAdapter):
         result = response["data"]["create_tweet"]["tweet_results"]["result"]
         return result["rest_id"]
 
-    def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    def post(
+        self,
+        text: str,
+        media_paths: Optional[List[str]] = None,
+        media_urls: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         Posts a tweet with optional media.
         """

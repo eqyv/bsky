@@ -17,13 +17,19 @@ class SocialAdapter(ABC):
         pass
 
     @abstractmethod
-    def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    def post(
+        self,
+        text: str,
+        media_paths: Optional[List[str]] = None,
+        media_urls: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         Posts content to the platform.
 
         Args:
             text: The text content of the post.
             media_paths: An optional list of local file paths to images/videos to upload.
+            media_urls: An optional list of public media URLs from the source post.
 
         Returns:
             A dictionary containing the result of the operation:
