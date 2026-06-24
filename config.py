@@ -19,6 +19,14 @@ class Config:
     X_AUTH_TOKEN: str = os.getenv("X_AUTH_TOKEN", "")
     X_CT0: str = os.getenv("X_CT0", "")
 
+    # Xquik API target
+    XQUIK_API_KEY: str = os.getenv("XQUIK_API_KEY", "")
+    XQUIK_ACCOUNT: str = os.getenv("XQUIK_ACCOUNT", "")
+    XQUIK_CREATE_TWEET_URL: str = os.getenv(
+        "XQUIK_CREATE_TWEET_URL",
+        "https://xquik.com/api/v1/x/tweets",
+    )
+
     # Instagram
     IG_USERNAME: str = os.getenv("IG_USERNAME", "")
     IG_PASSWORD: str = os.getenv("IG_PASSWORD", "")
