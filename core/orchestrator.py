@@ -17,14 +17,17 @@ class Orchestrator:
         logger.info(f"Registered adapter: {adapter.__class__.__name__}")
 
     def validate_all(self) -> bool:
-        """Validates credentials for all registered adapters."""
+        """Validate adapters and retain only those with valid credentials."""
         all_valid = True
+        valid_adapters = []
         for adapter in self.adapters:
             if not adapter.validate_credentials():
                 all_valid = False
                 logger.error(f"❌ Adapter {adapter.__class__.__name__} validation failed.")
             else:
+                valid_adapters.append(adapter)
                 logger.info(f"✅ Adapter {adapter.__class__.__name__} validated.")
+        self.adapters = valid_adapters
         return all_valid
 
     def crosspost(self, post_data: Dict[str, Any]) -> List[Dict[str, Any]]:

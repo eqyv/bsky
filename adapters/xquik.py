@@ -55,6 +55,10 @@ class XquikAdapter(SocialAdapter):
                 timeout=30,
             )
             response.raise_for_status()
+            if response.status_code == 202:
+                logger.warning("Xquik accepted the tweet; confirmation is pending.")
+                return {"success": True, "url": None, "error": None}
+
             data = response.json()
             tweet_id = data.get("tweetId")
             tweet_url = (
