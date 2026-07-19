@@ -5,3 +5,4 @@ apscheduler==3.10.4
 twikit
 atproto
 instagrapi
+Pillow==12.1.1

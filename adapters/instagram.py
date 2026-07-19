@@ -99,7 +99,12 @@ class InstagramAdapter(SocialAdapter):
             logger.error(f"❌ Instagram login failed: {e}")
             return False
 
-    def post(self, text: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    def post(
+        self,
+        text: str,
+        media_paths: Optional[List[str]] = None,
+        media_urls: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """Post to Instagram using the authenticated session."""
         if not self._is_authenticated:
             if not self.validate_credentials():

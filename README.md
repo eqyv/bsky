@@ -29,15 +29,16 @@
 | :-- | :-- | :-- | :-- |
 | 🦋 Bluesky | Source | `atproto` | App password |
 | ✖️ X (Twitter) | Target | `twikit` | Cookies _(recommended)_ or login |
+| ✖️ X via Xquik | Target | `requests` | API key |
 | 📸 Instagram | Target | `instagrapi` | Session / login |
 
 ## Features
 
-- **Multi-target fan-out** — one Bluesky post → many platforms in a single pass.
-- **Media-aware** — downloads and re-uploads images attached to the source post.
-- **Resilient state** — tracks the last processed post; only advances state when a target succeeds, so nothing is silently dropped.
-- **Drop-in adapters** — each platform is isolated behind a common interface; missing credentials simply skip that target.
-- **Cookie-based X auth** — sidesteps X's Cloudflare-protected login (essential on VPS/datacenter IPs).
+- **Multi-target fan-out** - one Bluesky post → many platforms in a single pass.
+- **Media-aware** - downloads and re-uploads images attached to the source post.
+- **Resilient state** - tracks the last processed post; only advances state when a target succeeds, so nothing is silently dropped.
+- **Drop-in adapters** - each platform is isolated behind a common interface; missing credentials simply skip that target.
+- **Cookie-based X auth** - sidesteps X's Cloudflare-protected login (essential on VPS/datacenter IPs).
 
 ## Installation
 
@@ -63,13 +64,14 @@ cp .env.example .env
 | :-- | :--: | :-- |
 | `BSKY_HANDLE` | ✅ | Your Bluesky handle (`name.bsky.social`) |
 | `BSKY_APP_PASSWORD` | ✅ | Bluesky **app password** (not your login password) |
-| `X_AUTH_TOKEN` / `X_CT0` | ▶️ | Browser-exported X cookies — **preferred** auth |
+| `X_AUTH_TOKEN` / `X_CT0` | ▶️ | Browser-exported X cookies - **preferred** auth |
 | `X_USERNAME` / `X_EMAIL` / `X_PASSWORD` | ▶️ | X login fallback (blocked on datacenter IPs) |
 | `X_TOTP_SECRET` | ⬜ | X 2FA base32 secret, if enabled |
+| `XQUIK_API_KEY` / `XQUIK_ACCOUNT` | ▶️ | Xquik API key and connected X account |
 | `IG_USERNAME` / `IG_PASSWORD` | ▶️ | Instagram credentials |
 | `POLL_INTERVAL_SECONDS` | ⬜ | How often to check Bluesky (default `180`) |
 
-> ▶️ = required only for that target. Enable any subset of X / Instagram.
+> ▶️ = required only for that target. Enable any subset of X / Xquik / Instagram.
 
 **Getting your X cookies:** log into X in a browser → DevTools → **Application → Cookies → `https://x.com`** → copy the `auth_token` and `ct0` values into `.env`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for why this is recommended.
 

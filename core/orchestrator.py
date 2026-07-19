@@ -17,14 +17,17 @@ class Orchestrator:
         logger.info(f"Registered adapter: {adapter.__class__.__name__}")
 
     def validate_all(self) -> bool:
-        """Validates credentials for all registered adapters."""
+        """Validate adapters and retain only those with valid credentials."""
         all_valid = True
+        valid_adapters = []
         for adapter in self.adapters:
             if not adapter.validate_credentials():
                 all_valid = False
                 logger.error(f"❌ Adapter {adapter.__class__.__name__} validation failed.")
             else:
+                valid_adapters.append(adapter)
                 logger.info(f"✅ Adapter {adapter.__class__.__name__} validated.")
+        self.adapters = valid_adapters
         return all_valid
 
     def crosspost(self, post_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -39,6 +42,11 @@ class Orchestrator:
         """
         text = post_data.get("text", "")
         media_items = post_data.get("media", [])
+        media_urls = [
+            item.get("url", "")
+            for item in media_items
+            if item.get("url", "").startswith(("http://", "https://"))
+        ]
         post_uri = post_data.get("uri", "")
 
         # Download media files
@@ -54,7 +62,7 @@ class Orchestrator:
         results = []
         for adapter in self.adapters:
             logger.info(f"📤 Posting to {adapter.__class__.__name__}...")
-            result = adapter.post(text, media_paths)
+            result = adapter.post(text, media_paths, media_urls)
             results.append(result)
 
             if result.get("success"):
